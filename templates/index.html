@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>面部表情识别</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="board">
+            <div class="hole" id="emoji-hole">
+                <img src="{{ url_for('static', filename='emojis/happy.png') }}" alt="Emoji" id="emoji-image">
+            </div>
+            <div class="camera-feed">
+                <video id="video" autoplay playsinline></video>
+            </div>
+            <div class="detected-emotion" id="detected-emotion">当前情绪: 中性</div>
+            <div class="required-emotion" id="required-emotion">需要的情绪: 开心</div>
+        </div>
+        <div class="debug-info" id="debug-info">
+            <h3>调试信息:</h3>
+            <pre id="debug-text"></pre>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const videoElement = document.getElementById('video');
+            const emojiImage = document.getElementById('emoji-image');
+            const detectedEmotionElement = document.getElementById('detected-emotion');
+            const requiredEmotionElement = document.getElementById('required-emotion');
+            const debugTextElement = document.getElementById('debug-text');
+
+            // 设置视频源
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    videoElement.srcObject = stream;
+                })
+                .catch(err => console.error("Error accessing camera:", err));
+
+            // WebSocket连接
+            const socket = io();
+
+            socket.on('update_emoji', function(data) {
+                const nextEmoji = data.nextEmoji;
+                const requiredEmotion = data.requiredEmotion;
+                emojiImage.src = `/static/emojis/${nextEmoji}`;
+                requiredEmotionElement.textContent = `需要的情绪: ${requiredEmotion}`;
+            });
+
+            socket.on('detected_emotion', function(data) {
+                const detectedEmotion = data.detectedEmotion;
+                const debugInfo = data.debugInfo;
+                detectedEmotionElement.textContent = `当前情绪: ${detectedEmotion}`;
+
+                // 显示调试信息
+                let debugText = '';
+                for (const key in debugInfo) {
+                    debugText += `${key}: ${debugInfo[key].toFixed(4)}\n`;
+                }
+                debugTextElement.textContent = debugText;
+            });
+
+            // 视频流处理
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+
+            function processVideoFrame() {
+                if (!videoElement.videoWidth || !videoElement.videoHeight) {
+                    requestAnimationFrame(processVideoFrame);
+                    return;
+                }
+
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+
+                context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                const imageData = canvas.toDataURL('image/png');
+                socket.emit('send_frame', { frame: imageData });
+
+                requestAnimationFrame(processVideoFrame);
+            }
+
+            requestAnimationFrame(processVideoFrame);
+        });
+    </script>
+</body>
+</html>
+
+
+
