@@ -1,8 +1,8 @@
 import cv2
 import mediapipe as mp
-from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-import base64
+import joblib
+import os
 from flask import Flask, render_template, Response
 from flask_socketio import SocketIO, emit
 
@@ -12,129 +12,108 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # 初始化MediaPipe Face Mesh
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-
-# 初始化绘图工具
 mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
 
-
-# 定义情绪阈值（这里是一个稍微改进的例子）
-def get_emotion(landmarks):
-    if len(landmarks) < 468:
-        return "未检测到足够的关键点"
-
-    # 获取眼睛和嘴巴的关键点位置
-    left_eye_openness = abs(landmarks[145].y - landmarks[159].y)
-    right_eye_openness = abs(landmarks[374].y - landmarks[386].y)
-    mouth_openness = abs(landmarks[13].y - landmarks[14].y)
-    eye_avg_openness = (left_eye_openness + right_eye_openness) / 2
-
-    # 计算眉毛提升程度
-    left_eyebrow_lift = abs(landmarks[105].y - landmarks[6].y)
-    right_eyebrow_lift = abs(landmarks[336].y - landmarks[296].y)
-    eyebrow_avg_lift = (left_eyebrow_lift + right_eyebrow_lift) / 2
-
-    # 计算嘴角上扬程度
-    left_mouth_upturn = abs(landmarks[291].y - landmarks[0].y)
-    right_mouth_upturn = abs(landmarks[61].y - landmarks[0].y)
-    mouth_upturn_avg = (left_mouth_upturn + right_mouth_upturn) / 2
-
-    # 计算嘴角向下拉的程度
-    left_mouth_downward = abs(landmarks[17].y - landmarks[0].y)
-    right_mouth_downward = abs(landmarks[269].y - landmarks[0].y)
-    mouth_downward_avg = (left_mouth_downward + right_mouth_downward) / 2
-
-    # 调试信息
-    debug_info = {
-        "eye_avg_openness": eye_avg_openness,
-        "eyebrow_avg_lift": eyebrow_avg_lift,
-        "mouth_openness": mouth_openness,
-        "mouth_upturn_avg": mouth_upturn_avg,
-        "mouth_downward_avg": mouth_downward_avg
-    }
-
-    # 情绪判断逻辑
-    if eyebrow_avg_lift > 0.02 and eye_avg_openness < 0.01:
-        emotion = "angry"
-    elif eye_avg_openness > 0.02 and mouth_openness > 0.02:
-        emotion = "surprise"
-    elif mouth_upturn_avg > 0.02:
-        emotion = "happy"
-    elif mouth_downward_avg > 0.02:
-        emotion = "sad"
-    elif eye_avg_openness > 0.01:
-        emotion = "fear"
-    else:
-        emotion = "neutral"
-
-    return emotion, debug_info
-
-
-# 加载中文字体
+# 加载预训练模型
 try:
-    font_path = "simhei.ttf"  # 确保你有一个可用的中文字体文件
-    font = ImageFont.truetype(font_path, 30)
-except IOError:
-    print("字体文件不存在或路径错误，请确保 simhei.ttf 文件存在")
-    font = ImageFont.load_default()
+    model_path = r'D:\code\Python_Mediapipe\face_expression_recognition\models\expression_recognition_model.pkl'
+    model = joblib.load(model_path)
+    print(f"Model loaded successfully from: {os.path.abspath(model_path)}")
+except Exception as e:
+    print(f"Failed to load model: {e}")
+    exit(1)
 
-# 表情映射
+# 表情标签映射
+emotion_labels = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
+
+# 表情映射到对应的图片
 emoji_mapping = {
     "angry": "angry.png",
+    "disgust": "disgusted.png",
     "fear": "fear.png",
     "happy": "happy.png",
+    "neutral": "neutral.png",
     "sad": "sad.png",
-    "surprise": "surprised.png",
-    "neutral": "neutral.png"
+    "surprise": "surprised.png"
 }
 
 current_emoji_index = 0
 emojis = list(emoji_mapping.keys())
 
 
+def preprocess_landmarks(landmarks):
+    """将MediaPipe提取的关键点转换为适合模型输入的格式"""
+    return np.array([[lm.x, lm.y, lm.z] for lm in landmarks]).flatten()
+
+
 @socketio.on('connect')
 def handle_connect():
     global current_emoji_index
     current_emoji_index = 0
-    emit('update_emoji',
-         {'nextEmoji': emoji_mapping[emojis[current_emoji_index]], 'requiredEmotion': emojis[current_emoji_index]})
+    next_emoji = emoji_mapping[emojis[current_emoji_index]]
+    required_emotion = emojis[current_emoji_index]
+    emit('update_emoji', {'nextEmoji': next_emoji, 'requiredEmotion': required_emotion})
+    print(f"Client connected and update_emoji emitted: {next_emoji}, {required_emotion}")
 
 
 def generate_frames():
     global current_emoji_index
     cap = cv2.VideoCapture(0)
 
+    if not cap.isOpened():
+        print("Error: Could not open video capture device.")
+        return
+    else:
+        print("Video capture device opened successfully.")
+
     while True:
         success, frame = cap.read()
         if not success:
+            print("Failed to read frame from camera")
             break
         else:
+            print("Frame read successfully")
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = face_mesh.process(frame_rgb)
             frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
-            detected_emotion = "neutral"
-            debug_info = {}
+            detected_emotion = "unknown"
             if results.multi_face_landmarks:
                 for face_landmarks in results.multi_face_landmarks:
-                    emotion, debug_info = get_emotion(face_landmarks.landmark)
-                    pil_image = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-                    draw = ImageDraw.Draw(pil_image)
-                    draw.text((50, 50), emotion, font=font, fill=(0, 255, 0))
-                    frame_bgr = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
-                    detected_emotion = emotion
+                    # 绘制面部关键点
+                    mp_drawing.draw_landmarks(
+                        image=frame_bgr,
+                        landmark_list=face_landmarks,
+                        connections=mp_face_mesh.FACEMESH_TESSELATION,
+                        landmark_drawing_spec=None,
+                        connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_tesselation_style())
 
-                    if emotion == emojis[current_emoji_index]:
+                    landmarks = preprocess_landmarks(face_landmarks.landmark)
+                    print(f"Detected landmarks: {landmarks[:10]}")  # Print first 10 landmarks for brevity
+                    # 使用模型预测情绪
+                    prediction = model.predict([landmarks])[0]
+                    detected_emotion = emotion_labels[prediction]
+                    print(f"Detected emotion: {detected_emotion}")
+                    # 更新当前检测到的情绪给前端
+                    socketio.emit('detected_emotion', {'detectedEmotion': detected_emotion})
+                    print(f"Emitting detected_emotion: {detected_emotion} to frontend")
+
+                    if detected_emotion == emojis[current_emoji_index]:
                         current_emoji_index = (current_emoji_index + 1) % len(emojis)
-                        socketio.emit('update_emoji', {'nextEmoji': emoji_mapping[emojis[current_emoji_index]],
-                                                       'requiredEmotion': emojis[current_emoji_index]})
+                        next_emoji = emoji_mapping[emojis[current_emoji_index]]
+                        required_emotion = emojis[current_emoji_index]
+                        socketio.emit('update_emoji', {'nextEmoji': next_emoji, 'requiredEmotion': required_emotion})
+                        print(f"Updated emoji to: {next_emoji}, {required_emotion}")
 
-                    # 发送当前检测到的情绪给前端
-                    socketio.emit('detected_emotion', {'detectedEmotion': detected_emotion, 'debugInfo': debug_info})
-
+            # 显示带有关键点的帧
             ret, buffer = cv2.imencode('.jpg', frame_bgr)
-            frame = buffer.tobytes()
+            frame_base64 = buffer.tobytes()
             yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_base64 + b'\r\n')
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 
 @app.route('/')
@@ -150,6 +129,3 @@ def video_feed():
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
-
-
-

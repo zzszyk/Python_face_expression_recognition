@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>表情穿洞游戏</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            position: relative;
+        }
+        .container {
+            text-align: center;
+            width: 640px; /* 根据摄像头画面调整 */
+            height: 480px; /* 根据摄像头画面调整 */
+            position: relative;
+        }
+        .video-container {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .emoji-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+        }
+        img {
+            max-width: 150px;
+            max-height: 150px;
+        }
+        .info-container {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 2;
+        }
+        .detected-emotion {
+            margin-top: 5px;
+        }
+        .success-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIA...'); /* 替换为你的成功特效图片base64编码 */
+            background-size: cover;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            pointer-events: none;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+            <div class="success-effect"></div>
+        </div>
+        <div class="emoji-container">
+            <img id="emoji" src="" alt="Required Emoji">
+        </div>
+        <div class="info-container">
+            <p id="required-emotion">等待初始化...</p>
+            <p id="detected-emotion" class="detected-emotion">检测到的表情: 未知</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const socket = io();
+            const videoElement = document.getElementById('video');
+            const emojiElement = document.getElementById('emoji');
+            const requiredEmotionElement = document.getElementById('required-emotion');
+            const detectedEmotionElement = document.getElementById('detected-emotion');
+            const successEffect = document.querySelector('.success-effect');
+
+            // 更新表情和所需情绪
+            socket.on('update_emoji', function(data) {
+                emojiElement.src = '/static/emojis/' + data.nextEmoji;
+                requiredEmotionElement.textContent = '当前表情: ' + data.requiredEmotion;
+            });
+
+            // 检测到的情绪
+            socket.on('detected_emotion', function(data) {
+                detectedEmotionElement.textContent = '检测到的表情: ' + data.detectedEmotion;
+                if (data.detectedEmotion === requiredEmotionElement.textContent.split(': ')[1]) {
+                    showSuccessEffect();
+                }
+            });
+
+            // 显示成功特效
+            function showSuccessEffect() {
+                successEffect.style.opacity = 1;
+                setTimeout(() => {
+                    successEffect.style.opacity = 0;
+                }, 1000); // 特效持续时间
+            }
+
+            // 请求视频流
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    videoElement.srcObject = stream;
+                })
+                .catch(error => {
+                    console.error('无法获取视频流:', error);
+                });
+        });
+    </script>
+</body>
+</html>
