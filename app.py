@@ -1,5 +1,7 @@
 import os
 import base64
+import random
+
 import cv2
 import joblib
 import mediapipe as mp
@@ -19,7 +21,7 @@ face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, min_
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
-## 加载预训练模型和标准化器
+# 加载预训练模型和标准化器
 try:
     model_path = r'models\expression_recognition_model.pkl'
     scaler_path = r'models\scaler.pkl'
@@ -31,40 +33,39 @@ except Exception as e:
     exit(1)
 
 # 表情标签映射
-emotion_labels = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
+emotion_labels = ['angry', 'fear', 'happy', 'neutral', 'sad', 'surprised']
 
 # 表情映射到对应的图片
 emoji_mapping = {
     "angry": "angry.png",
-    "disgust": "disgust.png",
     "fear": "fear.png",
     "happy": "happy.png",
     "neutral": "neutral.png",
     "sad": "sad.png",
-    "surprise": "surprise.png"
+    "surprised": "surprised.png"
 }
 
-global current_emoji_index  # 确保这是全局变量
-# 修改这里，让当前的表情不再从 "angry" 开始，而是从 "happy" 开始（例如索引 3）
-current_emoji_index = 3  # 让它从 'happy' 开始
+current_emoji_index = 2
 lock = Lock()  # 创建一个锁对象用于线程同步
 emojis = list(emoji_mapping.keys())
 
-def preprocess_landmarks(landmarks, scaler):
+
+def preprocess_landmarks(landmarks, _scaler):
     """将MediaPipe提取的关键点转换为适合模型输入的格式，并进行标准化"""
     landmarks_array = np.array([[lm.x, lm.y, lm.z] for lm in landmarks]).flatten()
-    return scaler.transform([landmarks_array])[0]
+    return _scaler.transform([landmarks_array])[0]
+
 
 @socketio.on('connect')
 def handle_connect():
     global current_emoji_index
     with lock:  # 使用锁来保护对共享资源的访问
-        # 直接设置为想要的情绪，例如 "happy"
-        current_emoji_index = 3  # 将这里的值改为所需的情绪（0为"angry"，1为"disgust"等）
+        current_emoji_index = 2
         next_emoji = emoji_mapping[emojis[current_emoji_index]]
         required_emotion = emojis[current_emoji_index]
         emit('update_emoji', {'nextEmoji': next_emoji, 'requiredEmotion': required_emotion})
         print(f"Client connected and update_emoji emitted: {next_emoji}, {required_emotion}")
+
 
 @socketio.on('send_frame')
 def handle_frame(data):
@@ -79,26 +80,31 @@ def handle_frame(data):
             for face_landmarks in results.multi_face_landmarks:
                 landmarks = preprocess_landmarks(face_landmarks.landmark, scaler)  # 传入scaler
                 prediction = model.predict([landmarks])[0]
+                if prediction > 5:
+                    break
                 detected_emotion = emotion_labels[prediction]
                 socketio.emit('detected_emotion', {'detectedEmotion': detected_emotion})
 
                 global current_emoji_index  # 明确指出我们使用的是全局变量
                 with lock:  # 使用锁来保护对共享资源的访问
                     if detected_emotion == emojis[current_emoji_index]:
-                        current_emoji_index = (current_emoji_index + 1) % len(emojis)
+                        current_emoji_index = current_emoji_index = random.randint(0, len(emojis) - 1)
                         next_emoji = emoji_mapping[emojis[current_emoji_index]]
                         required_emotion = emojis[current_emoji_index]
                         socketio.emit('update_emoji', {'nextEmoji': next_emoji, 'requiredEmotion': required_emotion})
     except Exception as e:
         print(f"Error processing frame: {e}")
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
+
 @app.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
 
 def generate_frames():
     cap = cv2.VideoCapture(0)
@@ -119,9 +125,11 @@ def generate_frames():
             detected_emotion = "unknown"
             if results.multi_face_landmarks:
                 for face_landmarks in results.multi_face_landmarks:
-                    # 使用新的预处理函数，并传入scaler进行标准化
+                    # 【引用】使用新的预处理函数，并传入scaler进行标准化
                     landmarks = preprocess_landmarks(face_landmarks.landmark, scaler)  # 传入scaler
                     prediction = model.predict([landmarks])[0]
+                    if prediction > 5:
+                        break
                     detected_emotion = emotion_labels[prediction]
                     print(f"Detected emotion: {detected_emotion}")
 
@@ -137,10 +145,11 @@ def generate_frames():
 
                     with lock:
                         if detected_emotion == emojis[current_emoji_index]:
-                            current_emoji_index = (current_emoji_index + 1) % len(emojis)
+                            current_emoji_index = random.randint(0, len(emojis) - 1)
                             next_emoji = emoji_mapping[emojis[current_emoji_index]]
                             required_emotion = emojis[current_emoji_index]
-                            socketio.emit('update_emoji', {'nextEmoji': next_emoji, 'requiredEmotion': required_emotion})
+                            socketio.emit('update_emoji',
+                                          {'nextEmoji': next_emoji, 'requiredEmotion': required_emotion})
 
             ret, buffer = cv2.imencode('.jpg', frame_bgr)
             frame_base64 = buffer.tobytes()
@@ -149,6 +158,18 @@ def generate_frames():
     finally:
         cap.release()
         cv2.destroyAllWindows()
+
+@socketio.on('give_up')
+def handle_give_up():
+    global current_emoji_index
+    with lock:
+        current_emoji_index = random.randint(0, len(emojis) - 1)
+        next_emoji = emoji_mapping[emojis[current_emoji_index]]
+        required_emotion = emojis[current_emoji_index]
+        socketio.emit('update_emoji',
+                      {'nextEmoji': next_emoji, 'requiredEmotion': required_emotion})
+        print(f"Give up button clicked, update_emoji emitted: {next_emoji}, {required_emotion}")
+        print(f"Give up button clicked, update_emoji emitted: {next_emoji}, {required_emotion}")
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
