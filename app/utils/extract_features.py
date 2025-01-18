@@ -39,8 +39,8 @@ def extract_features(image_path):
 
 
 def main():
-    dataset_dir = r'E:\OneDrive\Desktop\大三上\python程序设计\face_expression_recognition\dataset'  # 数据集目录
-    save_dir = os.path.abspath(r'E:\OneDrive\Desktop\大三上\python程序设计\face_expression_recognition\data')  # 保存数据的目录
+    dataset_dir = r'E:\face_expression_recognition1\dataset'  # 数据集目录
+    save_dir = os.path.abspath(r'E:\face_expression_recognition1\data')  # 保存数据的目录
     os.makedirs(save_dir, exist_ok=True)  # 确保保存目录存在
     features = []
     labels = []
@@ -51,7 +51,7 @@ def main():
         if os.path.isdir(folder_path):
             # 遍历文件夹中的每张图片
             for image_file in os.listdir(folder_path):
-                if image_file.lower().endswith('.tiff') or image_file.lower().endswith('.tif'):
+                if image_file.lower().endswith('.tiff') or image_file.lower().endswith('.jpg'):
                     image_path = os.path.join(folder_path, image_file)
                     feature = extract_features(image_path)
                     if feature:  # 如果成功提取到特征

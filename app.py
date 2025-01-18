@@ -33,7 +33,7 @@ except Exception as e:
     exit(1)
 
 # 表情标签映射
-emotion_labels = ['angry', 'fear', 'happy', 'neutral', 'sad', 'surprised']
+emotion_labels = ['angry', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
 # 表情映射到对应的图片
 emoji_mapping = {
@@ -42,7 +42,7 @@ emoji_mapping = {
     "happy": "happy.png",
     "neutral": "neutral.png",
     "sad": "sad.png",
-    "surprised": "surprised.png"
+    "surprise": "surprise.png"
 }
 
 current_emoji_index = 2

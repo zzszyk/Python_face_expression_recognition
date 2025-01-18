@@ -10,8 +10,8 @@ import os
 
 def main():
     # 加载特征和标签
-    features_path = r'D:\code\Python_Mediapipe\face_expression_recognition\data\features.npy'
-    labels_path = r'D:\code\Python_Mediapipe\face_expression_recognition\data\labels.npy'
+    features_path = r'E:\face_expression_recognition1\data\features.npy'
+    labels_path = r'E:\face_expression_recognition1\data\labels.npy'
 
     try:
         features = np.load(features_path)
@@ -58,14 +58,14 @@ def main():
 
     # 保存模型
     model_path = os.path.join(os.path.dirname(__file__),
-                              r'D:\code\Python_Mediapipe\face_expression_recognition\models\expression_recognition_model.pkl')
+                              r'E:\face_expression_recognition1\models\expression_recognition_model.pkl')
     try:
         joblib.dump(best_model, model_path)
         print(f"模型已保存到: {os.path.abspath(model_path)}")
 
         # 保存标准化器
         scaler_path = os.path.join(os.path.dirname(__file__),
-                                   r'D:\code\Python_Mediapipe\face_expression_recognition\models\scaler.pkl')
+                                   r'E:\face_expression_recognition1\models\scaler.pkl')
         joblib.dump(scaler, scaler_path)
         print(f"标准化器已保存到: {os.path.abspath(scaler_path)}")
     except Exception as e:
