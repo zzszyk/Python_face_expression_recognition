@@ -33,12 +33,13 @@ except Exception as e:
     exit(1)
 
 # 表情标签映射
-emotion_labels = ['angry', 'fear', 'happy', 'neutral', 'sad', 'surprise']
+emotion_labels = ['angry', 'fear', 'disgust', 'happy', 'neutral', 'sad', 'surprise']
 
 # 表情映射到对应的图片
 emoji_mapping = {
     "angry": "angry.png",
     "fear": "fear.png",
+    "disgust": "disgust.png",
     "happy": "happy.png",
     "neutral": "neutral.png",
     "sad": "sad.png",

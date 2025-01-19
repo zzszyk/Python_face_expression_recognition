@@ -39,8 +39,8 @@ def extract_features(image_path):
 
 
 def main():
-    dataset_dir = r'E:\face_expression_recognition1\dataset'  # 数据集目录
-    save_dir = os.path.abspath(r'E:\face_expression_recognition1\data')  # 保存数据的目录
+    dataset_dir = r'E:\face_expression_recognition\dataset'  # 数据集目录
+    save_dir = os.path.abspath(r'E:\face_expression_recognition\data')  # 保存数据的目录
     os.makedirs(save_dir, exist_ok=True)  # 确保保存目录存在
     features = []
     labels = []

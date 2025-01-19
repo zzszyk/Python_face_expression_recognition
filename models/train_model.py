@@ -7,12 +7,10 @@ from sklearn.ensemble import BaggingClassifier
 import joblib
 import os
 
-
 def main():
     # 加载特征和标签
-    features_path = r'E:\face_expression_recognition1\data\features.npy'
-    labels_path = r'E:\face_expression_recognition1\data\labels.npy'
-
+    features_path = r'E:\face_expression_recognition\data\features.npy'
+    labels_path = r'E:\face_expression_recognition\data\labels.npy'
     try:
         features = np.load(features_path)
         labels = np.load(labels_path)
@@ -32,10 +30,10 @@ def main():
 
     # 使用 GridSearchCV 进行模型调优
     param_grid = {
-        'estimator__C': [0.01, 0.1, 1, 10, 100, 1000],
-        'estimator__kernel': ['linear', 'rbf', 'poly'],
-        'estimator__gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1],
-        'estimator__degree': [2, 3, 4, 5]
+        'estimator__C': [0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000],
+        'estimator__kernel': ['linear', 'rbf', 'poly', 'sigmoid'],
+        'estimator__gamma': ['scale', 'auto', 0.0001, 0.001, 0.01, 0.1, 1, 10],
+        'estimator__degree': [2, 3, 4, 5, 6]
     }
     model = svm.SVC()
     bagging_model = BaggingClassifier(estimator=model, n_estimators=10, random_state=42)
@@ -57,20 +55,17 @@ def main():
     print(f'F1分数：{f1}')
 
     # 保存模型
-    model_path = os.path.join(os.path.dirname(__file__),
-                              r'E:\face_expression_recognition1\models\expression_recognition_model.pkl')
+    model_path = os.path.join(os.path.dirname(__file__), r'E:\face_expression_recognition\models\expression_recognition_model.pkl')
     try:
         joblib.dump(best_model, model_path)
         print(f"模型已保存到: {os.path.abspath(model_path)}")
 
         # 保存标准化器
-        scaler_path = os.path.join(os.path.dirname(__file__),
-                                   r'E:\face_expression_recognition1\models\scaler.pkl')
+        scaler_path = os.path.join(os.path.dirname(__file__), r'E:\face_expression_recognition\models\scaler.pkl')
         joblib.dump(scaler, scaler_path)
         print(f"标准化器已保存到: {os.path.abspath(scaler_path)}")
     except Exception as e:
         print(f"保存模型或标准化器时出错: {e}")
-
 
 if __name__ == '__main__':
     main()

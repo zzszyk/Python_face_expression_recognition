@@ -13,6 +13,7 @@
         <img src="{{ url_for('static', filename='/emojis/happy.png') }}" class="title-image">
         <img src="{{ url_for('static', filename='/emojis/angry.png') }}" class="title-image">
         <img src="{{ url_for('static', filename='/emojis/fear.png') }}" class="title-image">
+        <img src="{{ url_for('static', filename='/emojis/disgust.png') }}" class="title-image">
         <img src="{{ url_for('static', filename='/emojis/neutral.png') }}" class="title-image">
         <img src="{{ url_for('static', filename='/emojis/sad.png') }}" class="title-image">
         <img src="{{ url_for('static', filename='/emojis/surprise.png') }}" class="title-image">
@@ -112,7 +113,7 @@
         });
 
         function getRandomEmotion() {
-            const emotions = ['happy', 'sad', 'surprise', 'angry', 'fear', 'neutral'];
+            const emotions = ['happy', 'sad', 'surprise', 'disgust', 'angry', 'fear', 'neutral'];
             return emotions[Math.floor(Math.random() * emotions.length)];
         }
         function updateRequiredEmotion(emotion) {
@@ -136,16 +137,30 @@
             console.log('Received detected_emotion:', data);
             const detectedEmotion = data.detectedEmotion;
             const debugInfo = data.debugInfo;
-            emojiImage1.src = `/static/emojis/${detectedEmotion}.png`;
-            emojiImage1.style.display='block';
-            console.log("nextEmoji="+detectedEmotion);
-            detectedEmotionElement.textContent = `当前情绪: ${detectedEmotion}`;
+            let displayEmotion = detectedEmotion;
+<!--            if (detectedEmotion === 'happy') {-->
+<!--                displayEmotion = 'sad';-->
+<!--            } else if (detectedEmotion === 'sad') {-->
+<!--                displayEmotion = 'happy';-->
+<!--            }-->
 
-            if (data.detectedEmotion === requiredEmotionElement.textContent.split(': ')[1]) {
-                    createPlusOne();
-                    score+=1;
-                    scoreNum.textContent = `成功次数：${score}`;
-                }
+            const emojiImage1 = document.getElementById('emoji-image1');
+            emojiImage1.src = `/static/emojis/${displayEmotion}.png`;
+            emojiImage1.style.display = 'block';
+            console.log("displayEmotion=" + displayEmotion);
+
+            const detectedEmotionElement = document.getElementById('detected-emotion-text');
+            detectedEmotionElement.textContent = `当前情绪: ${displayEmotion}`;
+
+            const requiredEmotionElement = document.getElementById('required-emotion-text');
+            const requiredEmotion = requiredEmotionElement.textContent.split(': ')[1];
+
+            if (displayEmotion === requiredEmotion) {
+                createPlusOne();
+                score += 1;
+                const scoreNum = document.getElementById('score-num');
+                scoreNum.textContent = `成功次数：${score}`;
+            }
 
             // 显示调试信息
             //let debugText = '';
